@@ -1,0 +1,28 @@
+{
+  "name": "@frogly/widget-core",
+  "version": "3.0.0",
+  "description": "The one static script a website loads for Frogly. Same bytes for every site.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "main": "src/core.js",
+  "files": [
+    "src",
+    "build.mjs",
+    "docs",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --test test/core.test.mjs",
+    "test:browser": "echo 'Cloud-only test: runs in the Frogly cloud test environment, not on developer machines; results are recorded in docs/TESTING.md. Nothing was run.'",
+    "test:browser:cloud": "echo 'Cloud-only test: runs in the Frogly cloud test environment, not on developer machines; results are recorded in docs/TESTING.md' && node --test test/browser.test.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "playwright": "1.64.1"
+  }
+}
