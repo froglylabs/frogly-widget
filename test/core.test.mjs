@@ -6,8 +6,9 @@ import { fileURLToPath } from "node:url";
 import { bannedWordsIn, forbiddenIn, hashes, MAX_BYTES, problemsIn } from "../build.mjs";
 import { CORE_SCRIPT, CORE_VERSION } from "../src/core.js";
 import { CORE_V3_SCRIPT, CORE_V3_VERSION } from "../src/core.v3.js";
+import { CORE_V4_SCRIPT, CORE_V4_VERSION } from "../src/core.v4.js";
 import { allNodes, element, html, runCore, toHtml, visiblePair } from "./fake-dom.mjs";
-import { fixtureCfg, fixtureCfgText, SITE_ID } from "./fixture-cfg.mjs";
+import { fixtureCfg, fixtureCfgText, footerLinksCfgText, SITE_ID } from "./fixture-cfg.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -34,7 +35,7 @@ function hiddenBox(body) {
 
 describe("core file", () => {
   it("parses, stays under 15 KB, and has no banned word or forbidden construct", () => {
-    assert.equal(CORE_VERSION, 4);
+    assert.equal(CORE_VERSION, 5);
     assert.deepEqual(problemsIn(CORE_SCRIPT), []);
     assert.ok(hashes(CORE_SCRIPT).bytes < MAX_BYTES);
     assert.deepEqual(bannedWordsIn(CORE_SCRIPT), []);
@@ -66,11 +67,83 @@ describe("core file", () => {
     assert.ok(doc.includes(`sha256 ${sum.sha256}`), "docs/INTEGRITY.md keeps the version 3 sha256 line");
     assert.notEqual(sum.sha256, hashes(CORE_SCRIPT).sha256);
   });
+
+  it("keeps the frozen version 4 bytes exactly as published, so a pinned install never breaks", () => {
+    assert.equal(CORE_V4_VERSION, 4);
+    const sum = hashes(CORE_V4_SCRIPT);
+    assert.equal(sum.bytes, 15088);
+    assert.equal(sum.sha256, "1b56a92e09febdd1207d9fabaa8a2b6fc76da048e58c8b1bf1b58b734f9dd006");
+    assert.equal(sum.sri, "sha384-cxX6VlSnJbFCRk+9A4zNICeJhYmmoHOLlHP0vqr5CuS5NrQhiWWOIPL6XKI5Cw+Q");
+    assert.deepEqual(problemsIn(CORE_V4_SCRIPT), []);
+    const doc = readFileSync(path.join(here, "../docs/INTEGRITY.md"), "utf8");
+    assert.ok(doc.includes(`sha256 ${sum.sha256}`), "docs/INTEGRITY.md keeps the version 4 sha256 line");
+    assert.notEqual(sum.sha256, hashes(CORE_SCRIPT).sha256);
+    assert.notEqual(sum.sha256, hashes(CORE_V3_SCRIPT).sha256);
+  });
+});
+
+describe("the visible footer links are off unless the pack asks for them", () => {
+  /** Runs the core on the shop page and settles, with the given config text. */
+  async function settled(cfgText) {
+    const run = runCore(CORE_SCRIPT, { cfgText, seed: shopPage });
+    await run.settle();
+    return run;
+  }
+
+  it("adds no visible link when footer_links is absent, which is every site today", async () => {
+    const run = await settled(fixtureCfgText());
+    assert.equal(visiblePair(run.body).length, 0, "no visible link anywhere on the page");
+    const footer = run.body.children[2];
+    assert.equal(footer.tag, "footer");
+    assert.equal(footer.children[1].children.length, 2, "the footer list still has only its own two items");
+    assert.equal(run.body.children.length, 4, "only the hidden box was added to the body");
+    const box = hiddenBox(run.body);
+    assert.ok(box, "the hidden set is still built");
+    assert.ok(box.children.length >= 4, "the hidden links, note, config and forms are all there");
+    const checkIn = run.calls.find((call) => call.body && call.body.event_type === "check_in");
+    assert.ok(checkIn, "the check-in is still sent");
+    assert.equal(checkIn.body.core_version, 5);
+  });
+
+  it("adds no visible link when footer_links is false, or anything but the boolean true", async () => {
+    for (const value of [false, "true", 1, "yes", null, {}]) {
+      const run = await settled(fixtureCfgText({ pack: { ...fixtureCfg().pack, footer_links: value } }));
+      assert.equal(visiblePair(run.body).length, 0, `footer_links ${JSON.stringify(value)} leaves the pair out`);
+      assert.ok(hiddenBox(run.body), `footer_links ${JSON.stringify(value)} keeps the hidden set`);
+    }
+  });
+
+  it("adds the pair inside the footer only when footer_links is true, exactly as version 4 did", async () => {
+    const run = await settled(footerLinksCfgText());
+    const pair = visiblePair(run.body);
+    assert.equal(pair.length, 2);
+    const footer = run.body.children[2];
+    assert.ok(footer.contains(pair[0]) && footer.contains(pair[1]), "both links are inside the footer");
+    assert.equal(footer.children[1].children.length, 4, "two list items were added to the footer list");
+    for (const anchor of pair) {
+      assert.equal(anchor.attrs.rel, "nofollow");
+      assert.equal(anchor.attrs["data-keep"], "1");
+    }
+    assert.equal(run.body.children.length, 4, "nothing visible was added to the body itself");
+  });
+
+  it("does not add the pair later either, when a page redraws its footer", async () => {
+    const run = await settled(fixtureCfgText());
+    const footer = run.body.children[2];
+    run.body.removeChild(footer);
+    run.body.appendChild(footerWithList());
+    run.mutate();
+    await run.settle();
+    assert.equal(visiblePair(run.body).length, 0, "a redraw cannot switch the pair on");
+    const redrawn = run.body.children.find((child) => child.tag === "footer");
+    assert.ok(redrawn, "the new footer is on the page");
+    assert.equal(redrawn.children[1].children.length, 2, "its list still has only its own two items");
+  });
 });
 
 describe("core on a page", () => {
   it("loads the config from its own host and builds the layered set", async () => {
-    const run = runCore(CORE_SCRIPT, { cfgText: fixtureCfgText(), seed: shopPage });
+    const run = runCore(CORE_SCRIPT, { cfgText: footerLinksCfgText(), seed: shopPage });
     await run.settle();
     assert.deepEqual(run.cfgFetches, [`https://cdn.example/cfg/${SITE_ID}.json`]);
     const checkIn = run.calls.find((call) => call.body && call.body.event_type === "check_in");
@@ -130,14 +203,14 @@ describe("core on a page", () => {
   });
 
   it("shows the same footer labels on every load for one site", async () => {
-    const first = runCore(CORE_SCRIPT, { cfgText: fixtureCfgText(), seed: shopPage });
+    const first = runCore(CORE_SCRIPT, { cfgText: footerLinksCfgText(), seed: shopPage });
     await first.settle();
-    const second = runCore(CORE_SCRIPT, { cfgText: fixtureCfgText(), seed: shopPage });
+    const second = runCore(CORE_SCRIPT, { cfgText: footerLinksCfgText(), seed: shopPage });
     await second.settle();
     const labels = (run) => visiblePair(run.body).map((child) => child.textContent);
     assert.equal(labels(first).length, 2);
     assert.deepEqual(labels(first), labels(second));
-    const rotated = runCore(CORE_SCRIPT, { cfgText: fixtureCfgText({ pack: { ...fixtureCfg().pack, rotation: 3 } }), seed: shopPage });
+    const rotated = runCore(CORE_SCRIPT, { cfgText: footerLinksCfgText({ pack: { ...fixtureCfg().pack, rotation: 3 } }), seed: shopPage });
     await rotated.settle();
     assert.equal(labels(rotated).length, 2);
   });
@@ -171,7 +244,7 @@ describe("core on a page", () => {
 
   it("records a touch with the time to first touch and never a second time", async () => {
     let clock = 1000;
-    const run = runCore(CORE_SCRIPT, { cfgText: fixtureCfgText(), now: () => clock, seed: shopPage });
+    const run = runCore(CORE_SCRIPT, { cfgText: footerLinksCfgText(), now: () => clock, seed: shopPage });
     await run.settle();
     clock = 1700;
     const link = hiddenBox(run.body).children.find((child) => child.tag === "a");
@@ -296,7 +369,7 @@ describe("core on a page", () => {
     for (const events of [new Error("api down"), "hang"]) {
       const host = hostPage();
       const before = JSON.stringify([host.title, host.form]);
-      const run = runCore(CORE_SCRIPT, { cfgText: fixtureCfgText(), events, seed: host.seed });
+      const run = runCore(CORE_SCRIPT, { cfgText: footerLinksCfgText(), events, seed: host.seed });
       await run.settle();
       assert.equal(run.body.children[0], host.title, "the heading is still first");
       assert.equal(run.body.children[1], host.form, "the form is still second");
@@ -317,7 +390,7 @@ describe("core on a page", () => {
     const appends = [];
     const started = performance.now();
     const run = runCore(CORE_SCRIPT, {
-      cfgText: fixtureCfgText(),
+      cfgText: footerLinksCfgText(),
       seed(body) {
         shopPage(body);
         const original = body.appendChild.bind(body);
@@ -348,7 +421,7 @@ describe("where the two visible links land", () => {
   it("joins the list of links in the footer and dresses like its neighbour", async () => {
     const neighbour = { fontSize: "13px", color: "rgb(120, 120, 120)", textDecorationLine: "underline", margin: "0px 8px" };
     const run = runCore(CORE_SCRIPT, {
-      cfgText: fixtureCfgText(),
+      cfgText: footerLinksCfgText(),
       seed(body) {
         body.appendChild(html("header", {}, [html("a", { href: "/" }, "Home")]));
         body.appendChild(html("main", {}, [html("p", {}, "Hand made things.")]));
@@ -383,7 +456,7 @@ describe("where the two visible links land", () => {
 
   it("goes to the end of main when the page has no footer", async () => {
     const run = runCore(CORE_SCRIPT, {
-      cfgText: fixtureCfgText(),
+      cfgText: footerLinksCfgText(),
       seed(body) {
         body.appendChild(html("header", {}, [html("a", { href: "/" }, "Home")]));
         body.appendChild(html("main", {}, [html("h1", {}, "Ada Shop"), html("p", {}, "Hand made things.")]));
@@ -412,7 +485,7 @@ describe("where the two visible links land", () => {
 
   it("adds a small block at the end of a footer that has no links", async () => {
     const run = runCore(CORE_SCRIPT, {
-      cfgText: fixtureCfgText(),
+      cfgText: footerLinksCfgText(),
       seed(body) {
         body.appendChild(html("main", {}, [html("p", {}, "Hand made things.")]));
         body.appendChild(html("footer", {}, [html("p", {}, "Ada Shop, since 2019")]));
@@ -429,7 +502,7 @@ describe("where the two visible links land", () => {
 
   it("uses the end of the app root when there is no footer and no main", async () => {
     const run = runCore(CORE_SCRIPT, {
-      cfgText: fixtureCfgText(),
+      cfgText: footerLinksCfgText(),
       seed(body) {
         body.appendChild(html("div", { id: "root" }, [html("h1", {}, "Ada Shop"), html("p", {}, "Hand made things.")]));
       },
@@ -443,7 +516,7 @@ describe("where the two visible links land", () => {
 
   it("skips the visible pair on an app shell with a fixed root, and keeps the hidden set", async () => {
     const run = runCore(CORE_SCRIPT, {
-      cfgText: fixtureCfgText(),
+      cfgText: footerLinksCfgText(),
       seed(body) {
         const shell = html("div", { id: "app", computed: { position: "fixed", overflow: "hidden", overflowY: "auto" }, scrollHeight: 4000, clientHeight: 700 }, [
           html("header", {}, [html("a", { href: "/" }, "Home")]),
@@ -465,7 +538,7 @@ describe("where the two visible links land", () => {
 
   it("skips the visible pair on a scrolling shell that clips its content, and on a fixed footer", async () => {
     const clipped = runCore(CORE_SCRIPT, {
-      cfgText: fixtureCfgText(),
+      cfgText: footerLinksCfgText(),
       seed(body) {
         body.appendChild(html("div", { id: "app", computed: { overflowY: "auto" }, scrollHeight: 4000, clientHeight: 700 }, [html("main", {}, [html("p", {}, "Hi")])]));
       },
@@ -474,7 +547,7 @@ describe("where the two visible links land", () => {
     assert.equal(visiblePair(clipped.body).length, 0);
 
     const grows = runCore(CORE_SCRIPT, {
-      cfgText: fixtureCfgText(),
+      cfgText: footerLinksCfgText(),
       seed(body) {
         body.appendChild(html("div", { id: "app", computed: { overflowY: "auto" }, scrollHeight: 4000, clientHeight: 4000 }, [html("main", {}, [html("p", {}, "Hi")])]));
       },
@@ -483,7 +556,7 @@ describe("where the two visible links land", () => {
     assert.equal(visiblePair(grows.body).length, 2, "a wrapper that grows with its content is not a shell");
 
     const fixedFooter = runCore(CORE_SCRIPT, {
-      cfgText: fixtureCfgText(),
+      cfgText: footerLinksCfgText(),
       seed(body) {
         body.appendChild(html("main", {}, [html("p", {}, "Hi")]));
         body.appendChild(html("footer", { computed: { position: "fixed" } }, [html("a", { href: "/a" }, "A"), html("a", { href: "/b" }, "B")]));
@@ -494,7 +567,7 @@ describe("where the two visible links land", () => {
   });
 
   it("adds nothing visible to a page with no footer, no main, and no root block", async () => {
-    const run = runCore(CORE_SCRIPT, { cfgText: fixtureCfgText() });
+    const run = runCore(CORE_SCRIPT, { cfgText: footerLinksCfgText() });
     await run.settle();
     assert.equal(visiblePair(run.body).length, 0);
     assert.equal(run.body.children.length, 1, "the hidden box only");
@@ -503,7 +576,7 @@ describe("where the two visible links land", () => {
   });
 
   it("puts the pair back when a single page app redraws its footer, and never twice", async () => {
-    const run = runCore(CORE_SCRIPT, { cfgText: fixtureCfgText(), seed: shopPage });
+    const run = runCore(CORE_SCRIPT, { cfgText: footerLinksCfgText(), seed: shopPage });
     await run.settle();
     assert.equal(visiblePair(run.body).length, 2);
     assert.equal(run.observers.length, 1, "one observer on the page");
@@ -538,7 +611,7 @@ describe("where the two visible links land", () => {
 
   it("moves the pair into the footer when the footer only appears after the first draw", async () => {
     const run = runCore(CORE_SCRIPT, {
-      cfgText: fixtureCfgText(),
+      cfgText: footerLinksCfgText(),
       seed(body) {
         body.appendChild(html("div", { id: "root" }, [html("p", {}, "Loading")]));
       },

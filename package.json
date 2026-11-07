@@ -1,6 +1,6 @@
 {
   "name": "@frogly/widget-core",
-  "version": "4.0.0",
+  "version": "5.0.0",
   "description": "The one static script a website loads for Frogly. Same bytes for every site.",
   "license": "MIT",
   "private": true,

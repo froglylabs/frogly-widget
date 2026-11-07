@@ -164,7 +164,7 @@ export function runCore(script, options = {}) {
   if (options.seed) options.seed(body);
   const documentListeners = [];
   const currentScript = {
-    src: options.scriptSrc || "https://cdn.example/w/core.v4.js",
+    src: options.scriptSrc || "https://cdn.example/w/core.v5.js",
     getAttribute(name) {
       return name === "data-cfg" ? dataCfg : null;
     },

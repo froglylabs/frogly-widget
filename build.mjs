@@ -3,7 +3,7 @@
 // From this folder:
 //   cd packages/widget && npm run build
 //
-// It writes dist/core.v4.js, dist/integrity.json, and dist/core.v4.js.sha256.
+// It writes dist/core.v5.js, dist/integrity.json, and dist/core.v5.js.sha256.
 // It fails when the script does not parse, grows past 15 KB, contains a word
 // an intruder must not see, or contains a construct the core must never use.
 

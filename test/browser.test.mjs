@@ -24,7 +24,7 @@ import { after, before, describe, it } from "node:test";
 import { chromium } from "playwright";
 import { hashes } from "../build.mjs";
 import { CORE_SCRIPT, CORE_VERSION } from "../src/core.js";
-import { fixtureCfgText, SITE_ID } from "./fixture-cfg.mjs";
+import { fixtureCfgText, footerLinksCfgText, SITE_ID } from "./fixture-cfg.mjs";
 
 const PORTAL_HOST = "assets.internal";
 const CHECKIN = `https://${PORTAL_HOST}/v1/events`;
@@ -118,6 +118,9 @@ describe("the core in Chromium", () => {
   let origin;
   let tmp;
   let mode = "real";
+  // Since version 5 the two visible links need footer_links: true in the pack.
+  // The placement tests ask for it; the default test below leaves it out.
+  let footerLinks = true;
   const integrity = hashes(CORE_SCRIPT).sri;
 
   before(async () => {
@@ -134,7 +137,7 @@ describe("the core in Chromium", () => {
       }
       if (url.pathname === `/cfg/${SITE_ID}.json`) {
         res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
-        res.end(fixtureCfgText({ portal_host: PORTAL_HOST }));
+        res.end((footerLinks ? footerLinksCfgText : fixtureCfgText)({ portal_host: PORTAL_HOST }));
         return;
       }
       const page = url.pathname.replace(/^\//, "").replace(/\/plain$/, "") || "main-only";
@@ -208,8 +211,27 @@ describe("the core in Chromium", () => {
   const hasPair = () => document.querySelectorAll('a[data-keep="1"]:not([aria-hidden])').length >= 2;
   const hasBox = () => document.body.querySelectorAll("div[data-keep][aria-hidden]").length >= 1;
 
+  it("leaves the visible pair out by default, when the pack does not carry footer_links", async () => {
+    mode = "real";
+    footerLinks = false;
+    try {
+      const { before, after, live } = await compare("/footer-list", hasBox);
+      assert.equal(after.pair.length, 0, "no visible link was added anywhere");
+      assert.deepEqual(after.listItems, before.listItems, "the footer's own list is exactly as it was");
+      assert.equal(after.listItems.length, 3);
+      assert.equal(after.height, before.height, "the page did not change size");
+      const checkIn = live.events.find((event) => event.url === CHECKIN && event.body && event.body.event_type === "check_in");
+      assert.ok(checkIn, "the check-in still went out");
+      assert.equal(checkIn.body.core_version, CORE_VERSION);
+      await live.context.close();
+    } finally {
+      footerLinks = true;
+    }
+  });
+
   it("puts the two links in the footer's own list of links, dressed like their neighbours", async () => {
     mode = "real";
+    footerLinks = true;
     const { before, after, live } = await compare("/footer-list", hasPair);
     assert.equal(after.pair.length, 2, "two small footer links");
     for (const link of after.pair) {

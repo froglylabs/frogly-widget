@@ -43,3 +43,13 @@ export function fixtureCfg(overrides = {}) {
 export function fixtureCfgText(overrides = {}) {
   return JSON.stringify(fixtureCfg(overrides));
 }
+
+/**
+ * The same config with the two visible footer links switched on. Since
+ * version 5 the core leaves them out unless the signed pack carries
+ * footer_links: true, so the tests that place them ask for it here.
+ */
+export function footerLinksCfgText(overrides = {}) {
+  const base = fixtureCfg(overrides);
+  return JSON.stringify({ ...base, pack: { ...base.pack, footer_links: true } });
+}

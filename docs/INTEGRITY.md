@@ -2,7 +2,30 @@
 
 The core is one file with the same bytes for every site. Check a served copy against the values below.
 
-## Version 4, the current core
+## Version 5, the current core
+
+<!-- core-v5-start -->
+- Version: 5
+- File: `core.v5.js`
+- Size: 15134 bytes
+- Limit: 15360 bytes (15 KB)
+- sha256 bc058e09c0ebd0db3fae7c4a9d9f77716ec52b51b421e7c3e68c8227d8e6fbc9
+- SRI: `sha384-5PrNyFpjR+GGOLhFy+XWlvP9vJtqRDKWrSyGVuWYl907zw26TU0PSCod12iTAUdu`
+<!-- core-v5-end -->
+
+To check a served copy from your computer:
+
+```text
+cd ~/frogly && curl -s https://cdn.frogly.ai/w/core.v5.js | shasum -a 256
+```
+
+The number printed must match the sha256 line above. From a copy of this folder, `npm run build` prints the same three values from the source.
+
+What changed from version 4: the two small visible footer links are off unless the site's signed config carries `footer_links: true`. No site sets that, so version 5 adds nothing a visitor can see. The placing code is unchanged, so a site that turns the switch on gets the version 4 behaviour exactly. Everything else is the same.
+
+## Version 4, frozen
+
+Version 4 is frozen and served as is. Pages that pasted the version 4 line pinned it with the integrity value below, so the old address keeps serving exactly these bytes. They are kept in `src/core.v4.js` and a test checks that file against this hash.
 
 <!-- core-v4-start -->
 - Version: 4
@@ -13,17 +36,13 @@ The core is one file with the same bytes for every site. Check a served copy aga
 - SRI: `sha384-cxX6VlSnJbFCRk+9A4zNICeJhYmmoHOLlHP0vqr5CuS5NrQhiWWOIPL6XKI5Cw+Q`
 <!-- core-v4-end -->
 
-To check a served copy from your computer:
-
 ```text
 cd ~/frogly && curl -s https://cdn.frogly.ai/w/core.v4.js | shasum -a 256
 ```
 
-The number printed must match the sha256 line above. From a copy of this folder, `npm run build` prints the same three values from the source.
-
 ## Version 3, frozen
 
-Pages that pasted the version 3 line pinned it with the integrity value below, so the old address keeps serving exactly these bytes. They are kept in `src/core.v3.js` and a test checks that file against this hash.
+Version 3 is frozen and served as is. Pages that pasted the version 3 line pinned it with the integrity value below, so the old address keeps serving exactly these bytes. They are kept in `src/core.v3.js` and a test checks that file against this hash.
 
 <!-- core-v3-start -->
 - Version: 3

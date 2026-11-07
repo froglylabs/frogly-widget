@@ -1,4 +1,4 @@
-// Frogly widget core, version 4.
+// Frogly widget core, version 5.
 //
 // This file is byte for byte the same for every customer. It carries no site
 // id and no host name. At run time it reads the site id from its own script
@@ -10,12 +10,17 @@
 // createElement and textContent. It has no eval, no new Function, no innerHTML,
 // no document.write, and it loads no further script.
 //
-// The matching worker serves this string at w/core.v4.js. The build script in
+// The matching worker serves this string at w/core.v5.js. The build script in
 // this package writes it to dist and prints the SHA-256 and the SRI value.
-// The frozen version 3 bytes stay in core.v3.js so a page that pinned that
-// address with an integrity value keeps working until it moves to this line.
+// The frozen version 3 and version 4 bytes stay in core.v3.js and core.v4.js
+// so a page that pinned either address with an integrity value keeps working
+// until it moves to this line.
+//
+// What changed from version 4: the two small visible footer links are off
+// unless the site's signed pack carries footer_links: true. The hidden set and
+// everything else are the same.
 
-export const CORE_VERSION = 4;
+export const CORE_VERSION = 5;
 
 export const CORE_SCRIPT = `(function(){
 try{
@@ -101,6 +106,7 @@ var API="https://"+cfg.portal_host;
 var ITEMS=cfg.pack.items;
 var TOKEN=cfg.event_token||"";
 var FORMS=cfg.forms!==false;
+var FOOT=cfg.pack.footer_links===true;
 var HINT=cfg.hint||{};
 var SEED=SITE+"|"+String(cfg.pack.week||"")+"|"+String(cfg.pack.rotation||0);
 var BUDGET=50;
@@ -134,7 +140,7 @@ function send(eventType,rev,signalClass,extra){
 try{
 var path="/";
 try{if(location&&typeof location.pathname==="string"&&location.pathname.charAt(0)==="/"&&location.pathname.indexOf("..")===-1){path=location.pathname.slice(0,201);}}catch(e){}
-var body={site_id:SITE,session_key:SID,event_type:eventType,path:path,core_version:4};
+var body={site_id:SITE,session_key:SID,event_type:eventType,path:path,core_version:5};
 if(TOKEN)body.token=TOKEN;
 if(rev)body.rev=rev;
 if(signalClass)body.signal_class=signalClass;
@@ -264,7 +270,7 @@ var count=(box.childNodes&&box.childNodes.length)||0;
 if(count)document.body.appendChild(box);
 });
 task(function(over){
-if(over())return;
+if(over()||!FOOT)return;
 var pair=pickFooter();
 var visible=[creds.length?creds[0]:(links[1]||null),configs.length?configs[0]:(notes[1]||null)];
 var made=[],tries=0,wait=false,sawFoot=false;
